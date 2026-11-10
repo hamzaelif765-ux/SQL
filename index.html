@@ -47,7 +47,7 @@ async function boot(){
  try{SQL=await initSqlJs({locateFile:f=>'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/'+f});}
  catch(e){$('msg').innerHTML='<b class="er">WebAssembly failed to load.</b> Use a modern browser (Chrome, Edge, Firefox, Safari) and check your connection.';return}
  $('msg').textContent='';
- lessons=LESSONS.slice().sort((a,b)=>a.order-b.order);
+ lessons=LESSONS.slice().sort((a,b)=>a.id.localeCompare(b.id));
  renderList();open(lessons.find(l=>l.id===prog.last)||lessons[0]);
 }
 async function loadDataset(name){
