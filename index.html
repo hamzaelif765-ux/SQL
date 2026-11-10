@@ -35,6 +35,8 @@ td,th{border:1px solid var(--bd);padding:.2rem .5rem;white-space:nowrap}th{backg
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
 <script>
+const LESSONS=[{"id": "m00-l01", "module": "Module 0 - Foundations", "title": "What is SQL?", "order": 1, "level": "beginner", "estimatedMinutes": 10, "prerequisites": [], "engines": ["sqlite"], "dataset": "company", "theory": "A **database** is an organised collection of data. A **table** is like a spreadsheet: rows are records, columns are fields. **SQL** (Structured Query Language) is how you ask a relational database questions.\n\nQuery order of thinking: FROM -> WHERE -> GROUP BY -> HAVING -> SELECT -> ORDER BY -> LIMIT.", "examples": [{"title": "Look at a table", "sql": "SELECT * FROM employees LIMIT 5;"}], "exercises": [{"id": "m00-l01-e1", "level": "easy", "task": "Return the name and salary of every employee in the Sales department (dept_id = 1).", "starter": "SELECT ", "hint1": "Use WHERE to filter rows.", "hint2": "Filter on dept_id = 1.", "solution": "SELECT name, salary FROM employees WHERE dept_id = 1;", "explain": ["SELECT name, salary - pick columns", "FROM employees - the table", "WHERE dept_id = 1 - keep only Sales rows"], "compare": {"ordered": false, "columnNames": true, "floatTolerance": 0.001}}]}, {"id": "m01-l01", "module": "Module 1 - Basics", "title": "SELECT, aliases and DISTINCT", "order": 2, "level": "beginner", "estimatedMinutes": 15, "prerequisites": ["m00-l01"], "engines": ["sqlite"], "dataset": "company", "theory": "`SELECT` chooses columns. `AS` renames them. `DISTINCT` removes duplicate rows.", "examples": [{"title": "Alias", "sql": "SELECT name AS employee, salary * 12 AS annual FROM employees LIMIT 5;"}], "exercises": [{"id": "m01-l01-e1", "level": "easy", "task": "List each distinct dept_id used by employees, sorted ascending.", "starter": "SELECT ", "hint1": "DISTINCT after SELECT.", "hint2": "Add ORDER BY dept_id.", "solution": "SELECT DISTINCT dept_id FROM employees ORDER BY dept_id;", "explain": ["DISTINCT dept_id - unique values only", "ORDER BY - sort ascending"], "compare": {"ordered": true, "columnNames": true, "floatTolerance": 0.001}}]}];
+const DATASETS={"company": "CREATE TABLE departments(dept_id INTEGER PRIMARY KEY, dept_name TEXT NOT NULL);\nCREATE TABLE employees(emp_id INTEGER PRIMARY KEY, name TEXT NOT NULL, dept_id INTEGER REFERENCES departments(dept_id), salary REAL, hire_date TEXT);\nINSERT INTO departments VALUES (1,'Sales'),(2,'Engineering'),(3,'HR'),(4,'Finance');\nWITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i<300)\nINSERT INTO employees SELECT i, 'Employee '||i, (i%4)+1, 30000+((i*7919)%70000), date('2018-01-01','+'||((i*37)%2500)||' days') FROM n;\n"};
 const $=id=>document.getElementById(id);
 const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
 let SQL,db,lessons=[],cur=null,ex=null,hints=0,prog=store.get('sf.progress',{done:{},hints:{},attempts:{},last:null});
@@ -45,13 +47,11 @@ async function boot(){
  try{SQL=await initSqlJs({locateFile:f=>'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/'+f});}
  catch(e){$('msg').innerHTML='<b class="er">WebAssembly failed to load.</b> Use a modern browser (Chrome, Edge, Firefox, Safari) and check your connection.';return}
  $('msg').textContent='';
- try{const m=await (await fetch('lessons/manifest.json')).json();
-  lessons=await Promise.all(m.lessons.map(f=>fetch('lessons/'+f).then(r=>r.json())));
-  lessons.sort((a,b)=>a.order-b.order);}catch(e){$('msg').innerHTML='<span class="er">Could not load lessons: '+esc(e.message)+'</span>';return}
+ lessons=LESSONS.slice().sort((a,b)=>a.order-b.order);
  renderList();open(lessons.find(l=>l.id===prog.last)||lessons[0]);
 }
 async function loadDataset(name){
- const sql=await (await fetch('data/'+name+'.sql')).text();
+ const sql=DATASETS[name];
  if(db)db.close();db=new SQL.Database();db.exec(sql);renderSchema();
 }
 function renderSchema(){
