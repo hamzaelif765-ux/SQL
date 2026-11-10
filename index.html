@@ -1,0 +1,112 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SQLForge - Learn SQL</title>
+<style>
+:root{--bg:#fff;--fg:#1a1a1a;--card:#f4f5f7;--bd:#d0d4da;--ac:#2563eb;--ok:#16a34a;--er:#dc2626}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#14161a;--fg:#e8e8e8;--card:#1e2127;--bd:#363b44;--ac:#60a5fa}}
+:root[data-theme=dark]{--bg:#14161a;--fg:#e8e8e8;--card:#1e2127;--bd:#363b44;--ac:#60a5fa}
+*{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--fg)}
+header{display:flex;gap:.5rem;align-items:center;padding:.6rem 1rem;border-bottom:1px solid var(--bd);flex-wrap:wrap}
+header h1{font-size:1.1rem;margin:0;flex:1}
+main{display:grid;grid-template-columns:260px 1fr 240px;gap:1rem;padding:1rem}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+aside,section{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:.8rem;min-width:0}
+button{background:var(--ac);color:#fff;border:0;border-radius:6px;padding:.4rem .8rem;cursor:pointer;font:inherit}
+button.alt{background:transparent;color:var(--fg);border:1px solid var(--bd)}
+button:focus-visible,textarea:focus-visible,a:focus-visible{outline:3px solid var(--ac);outline-offset:2px}
+textarea{width:100%;min-height:130px;font:14px/1.4 ui-monospace,monospace;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:6px;padding:.5rem;tab-size:2}
+.lesson{display:block;width:100%;text-align:left;margin:2px 0;background:transparent;color:var(--fg)}
+.lesson.done::after{content:" ✓";color:var(--ok)}.lesson.cur{font-weight:700}
+.tw{overflow:auto;max-height:320px}table{border-collapse:collapse;font-size:.85rem}
+td,th{border:1px solid var(--bd);padding:.2rem .5rem;white-space:nowrap}th{background:var(--card)}
+.ok{color:var(--ok)}.er{color:var(--er)}pre{white-space:pre-wrap}.bar{height:8px;background:var(--bd);border-radius:4px}.bar i{display:block;height:100%;background:var(--ok);border-radius:4px}
+</style></head><body>
+<header><h1>SQLForge</h1><span id="engine">Engine: SQLite (sql.js)</span>
+<button class="alt" id="theme">Theme</button><button class="alt" id="exp">Export progress</button>
+<label class="alt" style="cursor:pointer">Import<input id="imp" type="file" accept=".json" hidden></label>
+<button class="alt" id="rst">Reset</button></header>
+<main>
+<aside aria-label="Lessons"><div class="bar"><i id="pb" style="width:0"></i></div><small id="pt"></small><div id="list"></div></aside>
+<section aria-label="Lesson"><div id="msg">Loading engine…</div><h2 id="lt"></h2><div id="theory"></div>
+<div id="ex"></div><textarea id="ed" spellcheck="false" aria-label="SQL editor"></textarea>
+<p><button id="run">Run (Ctrl+Enter)</button> <button class="alt" id="reset">Reset dataset</button> <button class="alt" id="chk">Check answer</button>
+<button class="alt" id="h">Hint</button> <button class="alt" id="done">Mark complete</button></p>
+<div id="out"></div></section>
+<aside aria-label="Schema"><b>Schema</b><div id="schema"></div></aside>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+let SQL,db,lessons=[],cur=null,ex=null,hints=0,prog=store.get('sf.progress',{done:{},hints:{},attempts:{},last:null});
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const md=t=>esc(t).replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\n\n/g,'<br><br>');
+const save=()=>store.set('sf.progress',prog);
+async function boot(){
+ try{SQL=await initSqlJs({locateFile:f=>'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/'+f});}
+ catch(e){$('msg').innerHTML='<b class="er">WebAssembly failed to load.</b> Use a modern browser (Chrome, Edge, Firefox, Safari) and check your connection.';return}
+ $('msg').textContent='';
+ try{const m=await (await fetch('lessons/manifest.json')).json();
+  lessons=await Promise.all(m.lessons.map(f=>fetch('lessons/'+f).then(r=>r.json())));
+  lessons.sort((a,b)=>a.order-b.order);}catch(e){$('msg').innerHTML='<span class="er">Could not load lessons: '+esc(e.message)+'</span>';return}
+ renderList();open(lessons.find(l=>l.id===prog.last)||lessons[0]);
+}
+async function loadDataset(name){
+ const sql=await (await fetch('data/'+name+'.sql')).text();
+ if(db)db.close();db=new SQL.Database();db.exec(sql);renderSchema();
+}
+function renderSchema(){
+ const t=db.exec("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name");let h='';
+ (t[0]?t[0].values:[]).forEach(([n])=>{h+='<details open><summary><b>'+esc(n)+'</b></summary><ul>';
+  db.exec('PRAGMA table_info('+n+')')[0].values.forEach(c=>h+='<li>'+esc(c[1])+' <small>'+esc(c[2])+(c[5]?' PK':'')+(c[3]?' NN':'')+'</small></li>');
+  db.exec('PRAGMA foreign_key_list('+n+')').forEach(r=>r.values.forEach(f=>h+='<li><small>FK → '+esc(f[2])+'.'+esc(f[4])+'</small></li>'));
+  h+='</ul></details>'});$('schema').innerHTML=h;
+}
+function renderList(){
+ $('list').innerHTML='';let mod='';
+ lessons.forEach(l=>{if(l.module!==mod){mod=l.module;$('list').insertAdjacentHTML('beforeend','<h4>'+esc(mod)+'</h4>')}
+  const b=document.createElement('button');b.className='lesson alt'+(prog.done[l.id]?' done':'')+(cur&&cur.id===l.id?' cur':'');
+  b.textContent=l.title;b.onclick=()=>open(l);$('list').appendChild(b)});
+ const n=lessons.filter(l=>prog.done[l.id]).length;$('pb').style.width=(100*n/Math.max(1,lessons.length))+'%';$('pt').textContent=n+' / '+lessons.length+' lessons complete';
+}
+async function open(l){
+ cur=l;ex=l.exercises[0];hints=0;prog.last=l.id;save();
+ $('lt').textContent=l.title;$('theory').innerHTML=md(l.theory)+l.examples.map(e=>'<p><b>'+esc(e.title)+'</b></p><pre>'+esc(e.sql)+'</pre>').join('');
+ $('ex').innerHTML='<p><b>Exercise ('+esc(ex.level)+'):</b> '+esc(ex.task)+'</p><div id="hint"></div>';
+ $('ed').value=ex.starter;$('out').innerHTML='';await loadDataset(l.dataset);renderList();
+}
+function run(sql){
+ const t0=performance.now();
+ try{const r=db.exec(sql);return{ok:true,res:r,ms:performance.now()-t0}}catch(e){return{ok:false,err:e.message}}
+}
+function table(r){return '<div class="tw"><table><tr>'+r.columns.map(c=>'<th>'+esc(c)+'</th>').join('')+'</tr>'+r.values.slice(0,200).map(v=>'<tr>'+v.map(x=>'<td>'+(x===null?'<i>NULL</i>':esc(x))+'</td>').join('')+'</tr>').join('')+'</table></div><small>'+r.values.length+' row(s)'+(r.values.length>200?' (first 200 shown)':'')+'</small>'}
+function show(){
+ const o=run($('ed').value);
+ if(!o.ok){$('out').innerHTML='<p class="er"><b>Something went wrong.</b> Check spelling, commas and quotes.</p><pre>'+esc(o.err)+'</pre>';return}
+ $('out').innerHTML=(o.res.length?table(o.res[o.res.length-1]):'<p class="ok">Statement executed.</p>')+'<small> • '+o.ms.toFixed(1)+' ms</small>';
+}
+function same(a,b,c){
+ if(!a||!b||a.columns.length!==b.columns.length||a.values.length!==b.values.length)return false;
+ if(c.columnNames&&a.columns.join()!==b.columns.join())return false;
+ const norm=v=>v.map(r=>r.map(x=>typeof x==='number'?Math.round(x/(c.floatTolerance||1e-9)):String(x)).join('\u0001'));
+ let x=norm(a.values),y=norm(b.values);if(!c.ordered){x.sort();y.sort()}return x.join('\n')===y.join('\n');
+}
+function check(){
+ const u=run($('ed').value),s=run(ex.solution);prog.attempts[ex.id]=(prog.attempts[ex.id]||0)+1;
+ const last=o=>o.ok&&o.res.length?o.res[o.res.length-1]:null;
+ if(u.ok&&same(last(u),last(s),ex.compare)){$('out').innerHTML='<p class="ok"><b>Correct!</b></p>'+table(last(u));prog.done[cur.id]=true;
+  $('hint').innerHTML='<pre>'+esc(ex.solution)+'</pre><ol>'+ex.explain.map(e=>'<li>'+esc(e)+'</li>').join('')+'</ol>';}
+ else{$('out').innerHTML='<p class="er"><b>Try again.</b></p>'+(u.ok&&last(u)?'<b>Yours</b>'+table(last(u)):'<pre>'+esc(u.err||'No result')+'</pre>')+'<b>Expected</b>'+table(last(s))}
+ save();renderList();
+}
+$('run').onclick=show;$('chk').onclick=check;$('reset').onclick=()=>loadDataset(cur.dataset);
+$('ed').addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();show()}});
+$('h').onclick=()=>{hints++;prog.hints[ex.id]=Math.max(prog.hints[ex.id]||0,hints);save();
+ $('hint').innerHTML=hints===1?'<p>💡 '+esc(ex.hint1)+'</p>':hints===2?'<p>💡 '+esc(ex.hint2)+'</p>':'<pre>'+esc(ex.solution)+'</pre><ol>'+ex.explain.map(e=>'<li>'+esc(e)+'</li>').join('')+'</ol>'};
+$('done').onclick=()=>{prog.done[cur.id]=true;save();renderList()};
+$('theme').onclick=()=>{const t=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=t;store.set('sf.theme',t)};
+if(store.get('sf.theme'))document.documentElement.dataset.theme=store.get('sf.theme');
+$('exp').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(prog,null,1)],{type:'application/json'}));a.download='sqlforge-progress.json';a.click()};
+$('imp').onchange=async e=>{try{prog=JSON.parse(await e.target.files[0].text());save();renderList()}catch(x){alert('Invalid progress file')}};
+$('rst').onclick=()=>{if(confirm('Reset all progress?')){prog={done:{},hints:{},attempts:{},last:null};save();renderList()}};
+boot();
+</script></body></html>

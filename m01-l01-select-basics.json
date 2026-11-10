@@ -1,0 +1,11 @@
+{
+ "id":"m01-l01","module":"Module 1 - Basics","title":"SELECT, aliases and DISTINCT","order":2,"level":"beginner",
+ "estimatedMinutes":15,"prerequisites":["m00-l01"],"engines":["sqlite"],"dataset":"company",
+ "theory":"`SELECT` chooses columns. `AS` renames them. `DISTINCT` removes duplicate rows.",
+ "examples":[{"title":"Alias","sql":"SELECT name AS employee, salary * 12 AS annual FROM employees LIMIT 5;"}],
+ "exercises":[{"id":"m01-l01-e1","level":"easy","task":"List each distinct dept_id used by employees, sorted ascending.",
+  "starter":"SELECT ","hint1":"DISTINCT after SELECT.","hint2":"Add ORDER BY dept_id.",
+  "solution":"SELECT DISTINCT dept_id FROM employees ORDER BY dept_id;",
+  "explain":["DISTINCT dept_id - unique values only","ORDER BY - sort ascending"],
+  "compare":{"ordered":true,"columnNames":true,"floatTolerance":0.001}}]
+}

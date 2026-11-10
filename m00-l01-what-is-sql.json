@@ -1,0 +1,11 @@
+{
+ "id":"m00-l01","module":"Module 0 - Foundations","title":"What is SQL?","order":1,"level":"beginner",
+ "estimatedMinutes":10,"prerequisites":[],"engines":["sqlite"],"dataset":"company",
+ "theory":"A **database** is an organised collection of data. A **table** is like a spreadsheet: rows are records, columns are fields. **SQL** (Structured Query Language) is how you ask a relational database questions.\n\nQuery order of thinking: FROM -> WHERE -> GROUP BY -> HAVING -> SELECT -> ORDER BY -> LIMIT.",
+ "examples":[{"title":"Look at a table","sql":"SELECT * FROM employees LIMIT 5;"}],
+ "exercises":[{"id":"m00-l01-e1","level":"easy","task":"Return the name and salary of every employee in the Sales department (dept_id = 1).",
+  "starter":"SELECT ","hint1":"Use WHERE to filter rows.","hint2":"Filter on dept_id = 1.",
+  "solution":"SELECT name, salary FROM employees WHERE dept_id = 1;",
+  "explain":["SELECT name, salary - pick columns","FROM employees - the table","WHERE dept_id = 1 - keep only Sales rows"],
+  "compare":{"ordered":false,"columnNames":true,"floatTolerance":0.001}}]
+}
